@@ -1,0 +1,32 @@
+{
+  "name": "samjs-mongo-auth",
+  "description": "",
+  "version": "0.1.0",
+  "repository": "https://github.com/SAMjs/samjs-mongo-auth",
+  "author": {
+    "name": "Paul Pflugradt",
+    "email": "paul.pflugradt@gmail.com"
+  },
+  "main": "lib/main.js",
+  "engines": {
+    "node": "*"
+  },
+  "dependencies": {
+    "crypto": "0.0.3",
+    "bcryptjs": "^2.2.1"
+  },
+  "devDependencies": {
+    "atom-ui-reporter": "0.0.1",
+    "chai": "^3.2.0",
+    "coffee-script": "^1.9.3",
+    "mocha": "^2.2.5",
+    "samjs": "*",
+    "samjs-client": "*",
+    "samjs-mongo": "*",
+    "samjs-mongo-auth-client": "*",
+    "samjs-mongo-client": "*"
+  },
+  "keywords": [],
+  "readmeFilename": "README.md",
+  "scripts": {}
+}
