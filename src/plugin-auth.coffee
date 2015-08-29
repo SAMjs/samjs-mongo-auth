@@ -1,4 +1,4 @@
-# out: ../lib/model-auth.js
+# out: ../lib/plugin-auth.js
 module.exports = (samjs, common) ->
   parsePermissionInSchema = (schema) ->
     tree = common.getTree(schema)
@@ -9,7 +9,7 @@ module.exports = (samjs, common) ->
         if v.write
           v.write = common.parsePermission(v.write)
     return schema
-  authInterface = require("./interface")(samjs, common)
+
   return (options) ->
     options ?= {}
     options.read ?= samjs.options.groupRoot
@@ -48,7 +48,7 @@ module.exports = (samjs, common) ->
       return common.crypto.comparePassword providedPassword, @[samjs.options.password]
         .then => return @
     @schema = parsePermissionInSchema(@schema)
-    @interfaces.auth = authInterface
+
     @getAllowedFields = (socket,mode) ->
       group = socket.client.auth.getGroup()
 
