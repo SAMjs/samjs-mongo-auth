@@ -1,7 +1,7 @@
 {
   "name": "samjs-mongo-auth",
   "description": "",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": "https://github.com/SAMjs/samjs-mongo-auth",
   "author": {
     "name": "Paul Pflugradt",
