@@ -14,6 +14,8 @@ samjs.plugins(require("samjs-mongo"),require("samjs-mongo-auth"))
 .models({
   name: "someModel"
   db: "mongo"
+  plugins:
+    auth: null
   schema:
     someProp:
       type: String

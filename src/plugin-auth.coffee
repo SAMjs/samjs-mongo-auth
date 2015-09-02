@@ -8,47 +8,22 @@ module.exports = (samjs, common) ->
           v.read = common.parsePermission(v.read)
         if v.write
           v.write = common.parsePermission(v.write)
+        if v.restricted?.allowed?
+          v.restricted.allowed = common.parsePermission(v.restricted.allowed)
     return schema
 
-  return (options) ->
-    options ?= {}
-    options.read ?= samjs.options.groupRoot
-    options.write ?= samjs.options.groupRoot
-    options.read = common.parsePermission(options.read)
-    options.write = common.parsePermission(options.write)
-    properties = {}
-    properties[samjs.options.username] = {
-      type: String
-      required: true
-      index:
-        unique: true
-      read: options.read
-      write: options.write
-    }
-    properties[samjs.options.password] = {
-      type: String
-      required: true
-      write: options.write
-    }
-    properties[samjs.options.group] = {
-      type: String
-      required: true
-      read: options.read
-      write: options.write
-    }
-    properties[samjs.options.loginDate] = {
-      type: Date
-      read: options.read
-      write: options.write
-    }
-    @schema.add(properties)
-    @schema.pre "save", (next) ->
-      common.crypto.generateHashedPassword(@,next)
-    @schema.methods.comparePassword = (providedPassword) ->
-      return common.crypto.comparePassword providedPassword, @[samjs.options.password]
-        .then => return @
+  return ->
     @schema = parsePermissionInSchema(@schema)
-
+    @getRestrictions = (socket) ->
+      group = socket.client.auth.getGroup()
+      @restrictions ?= {}
+      unless @restrictions[group]?
+        tree = common.getTree(@schema)
+        @restrictions[group] = []
+        for k,v of tree
+          if v.restricted?.allowed?.indexOf(group) < 0
+            @restrictions[group].push(v.restricted.find)
+      return @restrictions[group]
     @getAllowedFields = (socket,mode) ->
       group = socket.client.auth.getGroup()
 
@@ -58,7 +33,7 @@ module.exports = (samjs, common) ->
         tree = common.getTree(@schema)
         @allowedFields[group][mode] = []
         for k,v of tree
-          if v[mode]? and v[mode].indexOf(group) > -1
+          if v[mode]?.indexOf(group) > -1
             @allowedFields[group][mode].push(k)
         if @allowedFields[group][mode].length > 0
           @allowedFields[group][mode].push("_id")
@@ -80,6 +55,12 @@ module.exports = (samjs, common) ->
             if allowedFields.indexOf(k) < 0
               delete find[k]
         cleanFind query.find
+      else
+        query.find = {}
+      restrictions = @getRestrictions.bind(@)(socket)
+      if restrictions.length > 0
+        restrictions.push(query.find)
+        query.find = "$and": restrictions
       if query.fields?
         askedFields = query.fields.split(" ")
         realFields = []
@@ -112,19 +93,5 @@ module.exports = (samjs, common) ->
       return cond: cond, doc: doc
     @mutators.insert.push processWrite
     @mutators.remove.push processWrite
-    @findUser = (userName) ->
-      find = {}
-      find[samjs.options.username] = userName
-      return new samjs.Promise (resolve, reject) =>
-        @dbModel.findOne(find).exec()
-          .then resolve, reject
-    @setLoginDate = (userName) ->
-      find = {}
-      find[samjs.options.username] = userName
-      update = {}
-      update[samjs.options.loginDate] = Date.now()
-      return new samjs.Promise (resolve, reject) =>
-        @dbModel.update find, update, (err) ->
-          return reject err if err?
-          resolve()
+
     return @

@@ -1,8 +1,45 @@
 # out: ../lib/plugin-users.js
 module.exports = (samjs, common) ->
   authInterface = require("./interface")(samjs, common)
-  return ->
-    @interfaces.auth = authInterface
+  return (options) ->
+    options ?= {}
+    options.read ?= samjs.options.groupRoot
+    options.write ?= samjs.options.groupRoot
+    options.read = common.parsePermission(options.read)
+    options.write = common.parsePermission(options.write)
+    properties = {}
+    properties[samjs.options.username] = {
+      type: String
+      required: true
+      index:
+        unique: true
+      read: options.read
+      write: options.write
+    }
+    properties[samjs.options.password] = {
+      type: String
+      required: true
+      write: options.write
+    }
+    properties[samjs.options.group] = {
+      type: String
+      required: true
+      read: options.read
+      write: options.write
+    }
+    properties[samjs.options.loginDate] = {
+      type: Date
+      read: options.read
+      write: options.write
+    }
+    @schema.add(properties)
+    @schema.pre "save", (next) ->
+      common.crypto.generateHashedPassword(@,next)
+    @schema.methods.comparePassword = (providedPassword) ->
+      return common.crypto.comparePassword providedPassword, @[samjs.options.password]
+        .then => return @
+    @interfaces.auth ?= []
+    @interfaces.auth.push authInterface
     @test = (value) ->
       new samjs.Promise (resolve, reject) =>
         @dbModel.count {group:samjs.options.groupRoot}, (err, data) ->
@@ -34,4 +71,19 @@ module.exports = (samjs, common) ->
       return ->
         if socket?
           socket.removeAllListeners "root.set"
+    @findUser = (userName) ->
+      find = {}
+      find[samjs.options.username] = userName
+      return new samjs.Promise (resolve, reject) =>
+        @dbModel.findOne(find).exec()
+          .then resolve, reject
+    @setLoginDate = (userName) ->
+      find = {}
+      find[samjs.options.username] = userName
+      update = {}
+      update[samjs.options.loginDate] = Date.now()
+      return new samjs.Promise (resolve, reject) =>
+        @dbModel.update find, update, (err) ->
+          return reject err if err?
+          resolve()
     return @
