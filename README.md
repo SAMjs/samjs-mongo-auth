@@ -1,55 +1,42 @@
 # samjs-mongo-auth
 
-Authentification module for the mongo plugin for samjs.
+Adds authorization system for [samjs-mongo](https://github.com/SAMjs/samjs-mongo).
 
-Client: [samjs-mongo-auth-client](https://github.com/SAMjs/samjs-mongo-auth-client)
+## Getting Started
+```sh
+npm install --save samjs-mongo-auth
+```
 
-## Example
-```coffee
-samjs = require "samjs"
-
-samjs.plugins(require("samjs-mongo"),require("samjs-mongo-auth"))
-.options({config:"config.json"})
+## Usage
+```js
+samjs.plugins([
+  // samjs-auth and samjs-mongo are needed before samjs-mongo-auth
+  require("samjs-auth"),
+  require("samjs-mongo"),
+  require("samjs-mongo-auth")
+])
+.options()
 .configs()
 .models({
-  name: "someModel"
-  db: "mongo"
-  plugins:
-    auth: null
-  schema:
-    someProp:
-      type: String
-      read: "all"
-      write: "root"
-}).startup().io.listen(3000)
+  name: "someModel",
+  db: "mongo",
+  plugins: {
+    auth: authOptions, // (optional) auth plugin will be enabled for all monog models by default
 
-#will be in config mode, then in install mode, after install:
-samjs.started.then -> # not in install mode anymore
-
-#client in browser
-
-samjs = require("samjs-client")({url: window.location.host+":3000/"})
-samjs.plugins(require "samjs-mongo-client",require "samjs-mongo-auth-client")
-
-## when mongoURI isn't setted within config.json, samjs will go into
-## config mode, there you can set it
-samjs.install.set "mongoURI", "mongodb://localhost/tableName"
-.then -> #success
-.catch -> #failed
-
-## afterwards it goes into install mode, as at least one root user is required
-samjs.auth.install({name:"username",pwd:"somepwd"})
-.then -> #success
-.catch -> #failed
-
-someModel = new samjs.Mongo("someModel")
-# has insert / count / find / update / remove
-someModel.insert someProp:"someValue"
-.catch -> #will fail, not authenticated
-samjs.auth.login {name:"username",pwd:"somepwd"}
-.then -> #success
-  someModel.insert someProp:"someValue"
-  .then -> #will work now
-samjs.on "login", ->
-  # fired on successfull login
+    // to disable auth
+    noAuth: null
+  },
+  schema: {
+    someProp: {
+      type: String,
+      read: true, // all can read
+      write: "root" // only root can write
+      }
+    }
+}).startup(server)
 ```
+## authOptions
+name | type | default | description
+---: | --- | --- | ---
+insertable | boolean | true | allows user to create documents even when access to parts of it are forbidden
+deletable | boolean | false | allows user to delete documents even when access to parts of it are forbidden
