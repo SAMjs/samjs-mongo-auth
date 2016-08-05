@@ -232,14 +232,15 @@ describe "samjs", ->
             done()
           .catch done
   after (done) ->
-    if samjs.shutdown?
-      if samjs.models.testModel?
-        model1 = samjs.models.testModel.dbModel
-        model2 = samjs.models.testModel2.dbModel
-        model3 = samjs.models.testModel3.dbModel
-        samjs.Promise.all([model1.remove({}),model2.remove({}),model3.remove({})])
-        .then -> done()
-      else
-        samjs.shutdown().then -> done()
+    if samjs.models.testModel?
+      model1 = samjs.models.testModel.dbModel
+      model2 = samjs.models.testModel2.dbModel
+      model3 = samjs.models.testModel3.dbModel
+      samjs.Promise.all([model1.remove({}),model2.remove({}),model3.remove({})])
+      .then ->
+        return samjs.shutdown() if samjs.shutdown?
+      .then -> done()
+    else if samjs.shutdown?
+      samjs.shutdown().then -> done()
     else
       done()
