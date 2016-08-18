@@ -35,6 +35,7 @@ module.exports = (samjs) ->
       return props
 
   samjs.mongo.plugins auth: (options) ->
+    options ?= {}
     options.insertable ?= true
     options.deletable ?= false
     @addHook "beforeFind", (obj) =>
