@@ -21,9 +21,9 @@ module.exports = (samjs) ->
       props = []
       count = 0
       for k,v of getTree(@schema)
-        count++
         if k == "_id" or k =="id" or k =="__v"
           continue
+        count++
         if samjs.auth.getAllowance(user,v[mode],permissionChecker) == ""
           props.push k
         else
