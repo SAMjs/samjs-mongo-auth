@@ -1,5 +1,6 @@
 chai = require "chai"
 should = chai.should()
+chai.use require "chai-as-promised"
 samjs = require "samjs"
 samjsClient = require "samjs-client"
 samjsMongo = require "samjs-mongo"
@@ -19,7 +20,7 @@ mongodb = "mongodb://localhost/test"
 
 describe "samjs", ->
   client = null
-  before (done) ->
+  before ->
     fs.unlinkAsync testConfigFile
     .catch -> return true
     .finally ->
@@ -55,14 +56,13 @@ describe "samjs", ->
             read: true
             write: "root"
       })
-      done()
 
   describe "mongoAuth", ->
     model = null
     model2 = null
     model3 = null
     describe "startup", ->
-      it "should configure", (done) ->
+      it "should configure", ->
         samjs.startup().io.listen(port)
         client = samjsClient({
           url: url
@@ -74,45 +74,26 @@ describe "samjs", ->
         client.install.onceConfigure
         .return client.install.set "mongoURI", mongodb
         .return client.auth.createRoot "rootroot"
-        .then -> done()
-        .catch done
-      it "should be started up", (done) ->
+
+      it "should be started up",  ->
         samjs.state.onceStarted
-        .then -> done()
-        .catch done
-      it "should reject model.insert", (done) ->
+
+      it "should reject model.insert",  ->
         model = new client.Mongo("testModel")
         model.insert({name:"root",pwd:"newpwd"})
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject model.find", (done) ->
-        model.find()
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject model.count", (done) ->
-        model.count()
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject model.remove", (done) ->
-        model.remove({name:"root"})
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
+        .should.be.rejected
+      it "should reject model.find",  ->
+        model.find().should.be.rejected
+      it "should reject model.count",  ->
+        model.count().should.be.rejected
+      it "should reject model.remove",  ->
+        model.remove({name:"root"}).should.be.rejected
 
-      it "should reject model.update", (done) ->
+      it "should reject model.update",  ->
         model.update(cond:{group:"root"}, doc: {pwd:"newpwd"})
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should work with model2", (done) ->
+        .should.be.rejected
+
+      it "should work with model2", ->
         model2 = new client.Mongo("testModel2")
         model2.insert({someProp:"test",hidden:"hiddentest"})
         .then (result) ->
@@ -127,11 +108,9 @@ describe "samjs", ->
           should.not.exist result
         .catch (e) ->
           model2.remove({someProp:"test"})
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should work with model3", (done) ->
+        .should.be.rejected
+
+      it "should work with model3", ->
         model3 = new client.Mongo("testModel3")
         model3.insert({someProp:"test"})
         .then (result) ->
@@ -146,55 +125,46 @@ describe "samjs", ->
             model3.remove({someProp:"test"})
           .then (result) ->
             should.not.exist result
-          .catch (e) ->
-            done()
-        .catch done
+          .should.be.rejected
 
-      it "should auth", (done) ->
+
+      it "should auth",  ->
         client.auth.login {name:"root",pwd:"rootroot"}
         .then (result) ->
           result.name.should.equal "root"
-          done()
-        .catch done
+
       describe "once authenticated", ->
-        it "should model.insert", (done) ->
+        it "should model.insert", ->
           model.insert({someProp:"test"})
           .then (result) ->
             should.exist result._id
-            done()
-          .catch done
-        it "should model.find", (done) ->
+
+        it "should model.find", ->
           model.find(find:{someProp:"test"})
           .then (result) ->
             result = result[0]
             should.exist result._id
             should.exist result.someProp
             result.someProp.should.equal "test"
-            done()
-          .catch done
 
-        it "should model.count", (done) ->
+        it "should model.count", ->
           model.count({someProp:"test"})
           .then (result) ->
             result.should.equal 1
-            done()
-          .catch done
-        it "should model.update", (done) ->
+
+        it "should model.update",  ->
           model.update(cond:{someProp:"test"}, doc: {someProp:"test2"})
           .then (result) ->
             result.length.should.equal 1
             model.find(find: result[0])
           .then (result) ->
             result[0].someProp.should.equal "test2"
-            done()
-          .catch done
-        it "should model.remove", (done) ->
+        it "should model.remove", ->
           model.remove({someProp:"test2"})
           .then (result) ->
             result.length.should.equal 1
-            done()
-          .catch done
-        it "should work with model2", (done) ->
+
+        it "should work with model2",  ->
           model2.insert({someProp:"test",hidden:"hiddentest"})
           .then (result) ->
             should.exist result._id
@@ -211,9 +181,8 @@ describe "samjs", ->
             model2.remove({someProp:"test"})
           .then (result) ->
             result.length.should.equal 1
-            done()
-          .catch done
-        it "should work with model3", (done) ->
+
+        it "should work with model3", ->
           model3.insert({someProp:"test"})
           .then (result) ->
             should.exist result._id
@@ -229,9 +198,8 @@ describe "samjs", ->
             model3.remove({someProp:"test2"})
           .then (result) ->
             result.length.should.equal 1
-            done()
-          .catch done
-  after (done) ->
+
+  after ->
     if samjs.models.testModel?
       model1 = samjs.models.testModel.dbModel
       model2 = samjs.models.testModel2.dbModel
@@ -239,8 +207,5 @@ describe "samjs", ->
       samjs.Promise.all([model1.remove({}),model2.remove({}),model3.remove({})])
       .then ->
         return samjs.shutdown() if samjs.shutdown?
-      .then -> done()
     else if samjs.shutdown?
-      samjs.shutdown().then -> done()
-    else
-      done()
+      samjs.shutdown()

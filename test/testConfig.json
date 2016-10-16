@@ -1,1 +1,1 @@
-{"mongoURI":"mongodb://localhost/test","users":[{"name":"root","pwd":"$2a$10$CmYEgsg05Jc3YY0N0T3Vk.IPvoYw2FYNJqzXixrfG6t5mgOJjQiPu","hashed":true}]}
+{"mongoURI":"mongodb://localhost/test","users":[{"name":"root","pwd":"$2a$10$xrleieS2fOfbtVWVlKa2N.x81UTzTfBTialnntAfwg5071c4PEQUO","hashed":true}],"isConfigured":true,"isInstalled":true}
