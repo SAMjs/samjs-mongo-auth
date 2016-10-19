@@ -25,7 +25,7 @@ describe "samjs", ->
     .catch -> return true
     .finally ->
       samjs.reset()
-      .plugins(samjsAuth,samjsMongo,samjsMongoAuth)
+      .plugins(samjsAuth(),samjsMongo,samjsMongoAuth)
       .options({config:testConfigFile})
       .configs()
       .models({
@@ -86,8 +86,8 @@ describe "samjs", ->
         model.find().should.be.rejected
       it "should reject model.count",  ->
         model.count().should.be.rejected
-      it "should reject model.remove",  ->
-        model.remove({name:"root"}).should.be.rejected
+      it "should reject model.delete",  ->
+        model.delete({name:"root"}).should.be.rejected
 
       it "should reject model.update",  ->
         model.update(cond:{group:"root"}, doc: {pwd:"newpwd"})
@@ -107,7 +107,7 @@ describe "samjs", ->
         .then (result) ->
           should.not.exist result
         .catch (e) ->
-          model2.remove({someProp:"test"})
+          model2.delete({someProp:"test"})
         .should.be.rejected
 
       it "should work with model3", ->
@@ -117,15 +117,13 @@ describe "samjs", ->
           should.not.exist result
         .catch (e) ->
           model3.find(find:{})
-        .then (result) ->
-          model3.update(cond:{someProp:"test"}, doc: {someProp:"test2"})
           .then (result) ->
-            should.not.exist result
-          .catch (e) ->
-            model3.remove({someProp:"test"})
-          .then (result) ->
-            should.not.exist result
+            return model3.update(cond:{someProp:"test"}, doc: {someProp:"test2"})
+            .catch (e) ->
+              return model3.delete({someProp:"test"}).should.be.rejected
+            .should.be.rejected
           .should.be.rejected
+
 
 
       it "should auth",  ->
@@ -159,8 +157,8 @@ describe "samjs", ->
             model.find(find: result[0])
           .then (result) ->
             result[0].someProp.should.equal "test2"
-        it "should model.remove", ->
-          model.remove({someProp:"test2"})
+        it "should model.delete", ->
+          model.delete({someProp:"test2"})
           .then (result) ->
             result.length.should.equal 1
 
@@ -178,7 +176,7 @@ describe "samjs", ->
             model2.update(cond:{someProp:"test"}, doc: {hidden:"hiddentest2"})
           .then (result) ->
             result.length.should.equal 1
-            model2.remove({someProp:"test"})
+            model2.delete({someProp:"test"})
           .then (result) ->
             result.length.should.equal 1
 
@@ -195,7 +193,7 @@ describe "samjs", ->
             model3.update(cond:{someProp:"test"}, doc: {someProp:"test2"})
           .then (result) ->
             result.length.should.equal 1
-            model3.remove({someProp:"test2"})
+            model3.delete({someProp:"test2"})
           .then (result) ->
             result.length.should.equal 1
 

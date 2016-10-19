@@ -60,7 +60,11 @@ module.exports = (samjs) ->
       return obj
 
     @addHook "beforeUpdate", (obj) =>
-      props = processQuery.bind(@)(obj,"write",@permissionChecker, obj.query.cond)
+      props = processQuery.bind(@)(obj,"read",@permissionChecker, obj.query.cond)
+      if props != true
+        for key,val of obj.query.cond
+          return throw new Error "not allowed" if props.indexOf(key) == -1?
+      props = processQuery.bind(@)(obj,"write",@permissionChecker, obj.query.doc)
       if props != true
         newDoc = {}
         for k,v of obj.query.doc
@@ -69,7 +73,7 @@ module.exports = (samjs) ->
         obj.query.doc = newDoc
       return obj
 
-    @addHook "beforeRemove", (obj) =>
+    @addHook "beforeDelete", (obj) =>
       if options.deletable
         all = obj.query
       else
