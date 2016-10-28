@@ -31,30 +31,38 @@ describe "samjs", ->
       .models({
         name:"testModel"
         db:"mongo"
-        schema:
+        schema: (Schema) ->
           someProp:String
-        read: "root"
-        write: "root"
+          link:
+            type: Schema.Types.ObjectId
+            ref: "testModel2"
+        access:
+          read: "root"
+          write: "root"
       },{
         name:"testModel2"
         db:"mongo"
-        schema:
+        access:
+          read: "root"
+          write: "root"
+        schema: (Schema) ->
           someProp:
             type: String
-            read: "root"
-            write: "root"
+          link:
+            type: Schema.Types.ObjectId
           hidden:
             type: String
             read: false
-            write: "root"
       },{
         name:"testModel3"
         db:"mongo"
+        access:
+          read: "root"
+          write: "root"
         schema:
           someProp:
             type: String
             read: true
-            write: "root"
       })
 
   describe "mongoAuth", ->
@@ -79,7 +87,7 @@ describe "samjs", ->
         samjs.state.onceStarted
 
       it "should reject model.insert",  ->
-        model = new client.Mongo("testModel")
+        model = client.getMongoModel("testModel")
         model.insert({name:"root",pwd:"newpwd"})
         .should.be.rejected
       it "should reject model.find",  ->
@@ -94,7 +102,7 @@ describe "samjs", ->
         .should.be.rejected
 
       it "should work with model2", ->
-        model2 = new client.Mongo("testModel2")
+        model2 = client.getMongoModel("testModel2")
         model2.insert({someProp:"test",hidden:"hiddentest"})
         .then (result) ->
           should.not.exist result
@@ -111,7 +119,7 @@ describe "samjs", ->
         .should.be.rejected
 
       it "should work with model3", ->
-        model3 = new client.Mongo("testModel3")
+        model3 = client.getMongoModel("testModel3")
         model3.insert({someProp:"test"})
         .then (result) ->
           should.not.exist result
@@ -121,8 +129,7 @@ describe "samjs", ->
             return model3.update(cond:{someProp:"test"}, doc: {someProp:"test2"})
             .catch (e) ->
               return model3.delete({someProp:"test"}).should.be.rejected
-            .should.be.rejected
-          .should.be.rejected
+
 
 
 
@@ -196,6 +203,26 @@ describe "samjs", ->
             model3.delete({someProp:"test2"})
           .then (result) ->
             result.length.should.equal 1
+
+        it "should work with populate", ->
+          model2.insert({someProp:"test",hidden:"hiddentest"})
+          .then (result) -> model.insert({link:result._id,someProp:"test2"})
+          .then -> model.find(find:{},populate:'link')
+          .then (result) ->
+            result = result[0]
+            should.exist result.link
+            should.exist result.link.someProp
+            should.not.exist result.link.hidden
+            result.link.someProp.should.equal "test"
+            model2.update({cond:{_id:result.link._id},doc:{link:result._id}})
+          .then -> model2.find(find:{},populate:{path:"link",model:"testModel"})
+          .then (result) ->
+            result = result[0]
+            should.exist result.link
+            should.exist result.link.someProp
+            result.link.someProp.should.equal "test2"
+            samjs.Promise.all [model.delete({}),model2.delete({})]
+
 
   after ->
     if samjs.models.testModel?

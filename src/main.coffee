@@ -5,91 +5,132 @@ module.exports = (samjs) ->
   throw new Error "samjs-mongo not found - must be loaded before samjs-mongo-auth" unless samjs.mongo
   throw new Error "samjs-auth not found - must be loaded before samjs-mongo-auth" unless samjs.auth
 
-  getTree = (schema) ->
-    if schema.tree
-      return schema.tree
-    else
-      return schema
+  getProps = (user) ->
+    id = samjs.auth.getIdentifier(user,@permissionChecker)
+    obj = @_props[id]
+    unless obj?
+      obj = {
+        read:
+          allowed: []
+          forbidden: []
+        write:
+          allowed: []
+          forbidden: []
+        }
+      for mode in ["read","write"]
+        for key, val of @schema.paths
+          if val.options[mode]?
+            perm = val.options[mode]
+          else
+            perm = @access[mode]
+          if samjs.auth.getAllowance(user,perm,@permissionChecker) == ""
+            obj[mode].allowed.push key
+          else
+            obj[mode].forbidden.push key
+        if obj[mode].allowed.length > 0
+          obj[mode].allowed.push "_id"
+        else
+          obj[mode].forbidden.push "_id"
+      @_props[id] = obj
+    return obj
 
-  processQuery = (obj,mode,permissionChecker,all) ->
+  processAuth = (obj,mode) ->
     throw new Error "invalid socket - no auth" unless obj.socket?.client?.auth?
-    throw new Error "no permission" unless all?
     user = obj.socket.client.auth.user
-    props = []
-    count = 0
-    for k,v of getTree(@schema)
-      if k == "_id" or k =="id" or k =="__v"
-        continue
-      count++
-      perm = v[mode]
-      perm ?= @[mode]
-      if samjs.auth.getAllowance(user,perm,permissionChecker) == ""
-        props.push k
-      else
-        throw new Error "no permission" if all == true or all[k]?
-    if count == props.length
-      return true
-    else
-      props.push "_id"
-    return props
+    if mode == "read"
+      props = @getProps(user)[mode]
+      if props.allowed.length > 0
+        return props
+    else if samjs.auth.getAllowance(user,@access[mode],@permissionChecker) == ""
+      mode = "write" if ["insert","update","delete"].indexOf(mode) > -1
+      return @getProps(user)[mode]
+    throw new Error "no permission"
+
+  hasForbiddenKey = (obj, forbidden) ->
+    if forbidden.length > 0
+      util = samjs.util
+      for key, val of obj
+        if util.isString(val)
+          if forbidden.indexOf(key) > -1
+            throw new Error "no permission"
+        else if util.isArray(val)
+          for obj in val
+            hasForbiddenKey(obj,forbidden)
+        else if util.isObject(val)
+          hasForbiddenKey(val,forbidden)
+
+  hasForbiddenProp = (str, forbidden) ->
+    if forbidden.length > 0
+      for prop in str.split(" ")
+        if forbidden.indexOf(prop) > -1
+          throw new Error "no permission"
 
   samjs.mongo.plugins auth: (options) ->
     options ?= {}
-    options.insertable ?= true
-    options.deletable ?= false
-    @addHook "beforeFind", (obj) =>
-      # props = processQuery.bind(@)(obj,"read",@permissionChecker, obj.query.find)
-      # if props != true
-      #   if obj.query.fields? and obj.query.fields != ""
-      #     fields = []
-      #     for prop in obj.query.fields.split(" ")
-      #       if props.indexOf(prop) > -1
-      #         fields.push prop
-      #   else
-      #     fields = props
-      #   obj.query.fields = props.join(" ")
+    @_props = {}
+    @getProps = getProps.bind(@)
+    @processAuth = processAuth.bind(@)
+
+    @addHook "beforeFind", (obj) ->
+      {allowed, forbidden} = @processAuth(obj,"read")
+      ## find
+      hasForbiddenKey(obj.query.find,forbidden)
+      ## fields
+      if obj.query.fields?
+        hasForbiddenProp(obj.query.fields,forbidden)
+      else if forbidden.length > 0
+        obj.query.fields = allowed.join(" ")
       return obj
 
-    @addHook "beforeInsert", (obj) =>
-      if options.insertable
-        all = obj.query
-      else
-        all = true
-      processQuery.bind(@)(obj,"write",@permissionChecker, all)
+    @addHook "beforeInsert", (obj) ->
+      {forbidden} = @processAuth(obj,"insert")
+      hasForbiddenKey(obj.query,forbidden)
       return obj
 
-    @addHook "beforeUpdate", (obj) =>
-      props = processQuery.bind(@)(obj,"read",@permissionChecker, obj.query.cond)
-      if props != true
-        for key,val of obj.query.cond
-          return throw new Error "not allowed" if props.indexOf(key) == -1?
-      props = processQuery.bind(@)(obj,"write",@permissionChecker, obj.query.doc)
-      if props != true
-        newDoc = {}
-        for k,v of obj.query.doc
-          if props.indexOf(k) > -1
-            newDoc[k] = v
-        obj.query.doc = newDoc
+    @addHook "afterInsert", (obj) ->
+      {allowed} = @processAuth(obj,"read")
+      result = {}
+      for str in allowed
+        result[str] = obj.result[str]
+      obj.result = result
       return obj
 
-    @addHook "beforeDelete", (obj) =>
-      if options.deletable
-        all = obj.query
-      else
-        all = true
-      processQuery.bind(@)(obj,"write",@permissionChecker, true)
+    @addHook "beforeUpdate", (obj) ->
+      forbiddenWrite = @processAuth(obj,"update").forbidden
+      forbiddenRead = @processAuth(obj,"read").forbidden
+      hasForbiddenKey(obj.query.cond,forbiddenRead)
+      hasForbiddenKey(obj.query.doc,forbiddenWrite)
       return obj
 
-    @addHook "afterCreate", ->
-      if samjs.authMongo?
-        tree = getTree(@schema)
-        for k,v of tree
-          if v?
-            if v.read
-              v._read = samjs.authMongo.parsePermission(v.read)
-            if v.write
-              v._write = samjs.authMongo.parsePermission(v.write)
+    @addHook "beforeDelete", (obj) ->
+      {forbidden} = @processAuth(obj,"delete")
+      hasForbiddenKey(obj.query,forbidden)
+      return obj
+
+    @addHook "beforePopulate", (obj) ->
+      for populate in obj.populate
+        modelname = populate.model
+        unless modelname?
+          schemaobj = @schema.path(populate.path)
+          if schemaobj?
+            modelname = schemaobj.options?.ref
+            modelname ?= schemaobj.caster?.options?.ref
+        if modelname? and samjs.models[modelname]?.processAuth?
+          {forbidden, allowed} = samjs.models[modelname].processAuth(obj,"read")
+          if populate.match?
+            hasForbiddenKey(populate.match, forbidden)
+          if populate.select?
+            hasForbiddenProp(populate.select, forbidden)
+          else if forbidden.length > 0
+            populate.select = allowed.join(" ")
+        else
+          throw new Error "populating failed"
+      return obj
+
+
+
 
   return new class MongoAuth
     name: "mongoAuth"
-    getTree: getTree
+    hasForbiddenKey: hasForbiddenKey
+    hasForbiddenProp: hasForbiddenProp
