@@ -34,6 +34,14 @@ module.exports = (samjs) ->
       @_props[id] = obj
     return obj
 
+  getRef = (schema, splitted) ->
+    first = splitted.shift()
+    schemaobj = schema.path(first)
+    if splitted.length > 0
+      return getRef(schemaobj.schema, splitted)
+    else
+      return schemaobj.options?.ref or schemaobj.caster?.options?.ref
+
   processAuth = (obj,mode) ->
     throw new Error "invalid socket - no auth" unless obj.socket?.client?.auth?
     user = obj.socket.client.auth.user
@@ -111,10 +119,7 @@ module.exports = (samjs) ->
       for populate in obj.populate
         modelname = populate.model
         unless modelname?
-          schemaobj = @schema.path(populate.path)
-          if schemaobj?
-            modelname = schemaobj.options?.ref
-            modelname ?= schemaobj.caster?.options?.ref
+          modelname = getRef(@schema, populate.path.split("."))
         if modelname? and samjs.models[modelname]?.processAuth?
           {forbidden, allowed} = samjs.models[modelname].processAuth(obj,"read")
           if populate.match?
