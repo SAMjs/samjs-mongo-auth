@@ -55,7 +55,7 @@ module.exports = (samjs) ->
     throw new Error "no permission"
 
   hasForbiddenKey = (obj, forbidden) ->
-    if forbidden.length > 0
+    if forbidden.length > 0 and obj?
       util = samjs.util
       for key, val of obj
         if util.isString(val)
