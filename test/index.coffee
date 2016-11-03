@@ -24,46 +24,46 @@ describe "samjs", ->
     fs.unlinkAsync testConfigFile
     .catch -> return true
     .finally ->
-      samjs.reset()
-      .plugins(samjsAuth(),samjsMongo,samjsMongoAuth)
-      .options({config:testConfigFile})
-      .configs()
-      .models({
-        name:"testModel"
-        db:"mongo"
-        schema: (Schema) ->
-          someProp:String
-          link:
-            type: Schema.Types.ObjectId
-            ref: "testModel2"
-        access:
-          read: "root"
-          write: "root"
-      },{
-        name:"testModel2"
-        db:"mongo"
-        access:
-          read: "root"
-          write: "root"
-        schema: (Schema) ->
-          someProp:
-            type: String
-          link:
-            type: Schema.Types.ObjectId
-          hidden:
-            type: String
-            read: false
-      },{
-        name:"testModel3"
-        db:"mongo"
-        access:
-          read: "root"
-          write: "root"
-        schema:
-          someProp:
-            type: String
-            read: true
-      })
+      samjs.reset().then ->
+        samjs.plugins(samjsAuth(),samjsMongo,samjsMongoAuth)
+        .options({config:testConfigFile})
+        .configs()
+        .models({
+          name:"testModel"
+          db:"mongo"
+          schema: (Schema) ->
+            someProp:String
+            link:
+              type: Schema.Types.ObjectId
+              ref: "testModel2"
+          access:
+            read: "root"
+            write: "root"
+        },{
+          name:"testModel2"
+          db:"mongo"
+          access:
+            read: "root"
+            write: "root"
+          schema: (Schema) ->
+            someProp:
+              type: String
+            link:
+              type: Schema.Types.ObjectId
+            hidden:
+              type: String
+              read: false
+        },{
+          name:"testModel3"
+          db:"mongo"
+          access:
+            read: "root"
+            write: "root"
+          schema:
+            someProp:
+              type: String
+              read: true
+        })
 
   describe "mongoAuth", ->
     model = null

@@ -6,7 +6,8 @@ module.exports = (samjs) ->
   throw new Error "samjs-auth not found - must be loaded before samjs-mongo-auth" unless samjs.auth
 
   getProps = (user) ->
-    id = samjs.auth.getIdentifier(user,@permissionChecker)
+    id = samjs.auth.callPermissionChecker(user, null,
+      Object.assign({getIdentifier:true},@authOptions))
     obj = @_props[id]
     unless obj?
       obj = {
@@ -23,7 +24,7 @@ module.exports = (samjs) ->
             perm = val.options[mode]
           else
             perm = @access[mode]
-          if samjs.auth.getAllowance(user,perm,@permissionChecker) == ""
+          if samjs.auth.getAllowance(user,perm,@authOptions) == ""
             obj[mode].allowed.push key
           else
             obj[mode].forbidden.push key
@@ -34,14 +35,6 @@ module.exports = (samjs) ->
       @_props[id] = obj
     return obj
 
-  getRef = (schema, splitted) ->
-    first = splitted.shift()
-    schemaobj = schema.path(first)
-    if splitted.length > 0
-      return getRef(schemaobj.schema, splitted)
-    else
-      return schemaobj.options?.ref or schemaobj.caster?.options?.ref
-
   processAuth = (obj,mode) ->
     throw new Error "invalid socket - no auth" unless obj.socket?.client?.auth?
     user = obj.socket.client.auth.user
@@ -49,13 +42,13 @@ module.exports = (samjs) ->
       props = @getProps(user)[mode]
       if props.allowed.length > 0
         return props
-    else if samjs.auth.getAllowance(user,@access[mode],@permissionChecker) == ""
+    else if samjs.auth.getAllowance(user,@access[mode],@authOptions) == ""
       mode = "write" if ["insert","update","delete"].indexOf(mode) > -1
       return @getProps(user)[mode]
     throw new Error "no permission"
 
   hasForbiddenKey = (obj, forbidden) ->
-    if forbidden.length > 0 and obj?
+    if forbidden.length > 0
       util = samjs.util
       for key, val of obj
         if util.isString(val)
@@ -117,11 +110,8 @@ module.exports = (samjs) ->
 
     @addHook "beforePopulate", (obj) ->
       for populate in obj.populate
-        modelname = populate.model
-        unless modelname?
-          modelname = getRef(@schema, populate.path.split("."))
-        if modelname? and samjs.models[modelname]?.processAuth?
-          {forbidden, allowed} = samjs.models[modelname].processAuth(obj,"read")
+        if populate.samjsmodel.processAuth?
+          {forbidden, allowed} = populate.samjsmodel.processAuth(obj,"read")
           if populate.match?
             hasForbiddenKey(populate.match, forbidden)
           if populate.select?
